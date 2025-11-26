@@ -311,7 +311,11 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
       setLoading(false);
 
       if (autoPlay) {
-
+        video.play().catch((e) => {
+          console.log('Autoplay with sound blocked, trying muted...', e);
+          video.muted = true;
+          video.play().catch((e2) => console.log('Muted autoplay also blocked', e2));
+        });
       }
     });
 
@@ -502,26 +506,46 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
         mpegtsPlayerRef.current = player;
         player.attachMediaElement(video);
         
-        // Set video to muted for autoplay compatibility
-        video.muted = true;
+        // Removed forced mute to allow playing with sound if possible
+        // video.muted = true;
         
         player.load();
 
         if (autoPlay) {
           const playPromise = player.play();
           if (playPromise !== undefined) {
-
+            (playPromise as Promise<void>).catch((e: any) => {
+              // Ignore AbortError which happens when pausing/unloading quickly
+              if (e.name === 'AbortError') return;
+              
+              console.log('Autoplay with sound blocked, trying muted...', e);
+              video.muted = true;
+              (player.play() as Promise<void>).catch((e2: any) => {
+                if (e2.name !== 'AbortError') {
+                  console.log('Muted autoplay also blocked', e2);
+                }
+              });
+            });
           }
         }
 
         player.on(mpegts.Events.ERROR, (type: any, details: any, data: any) => {
           console.error('MPEGTS Error:', { type, details, data });
           if (type === mpegts.ErrorTypes.NETWORK_ERROR) {
-             handlePlaybackError(
-              'Network error',
-              PlayerErrorType.NETWORK_ERROR,
-              true
-            );
+             // Check for 503 Service Unavailable
+             if (data && data.code === 503) {
+               handlePlaybackError(
+                 'Stream unavailable (503). The channel server is temporarily down.',
+                 PlayerErrorType.NETWORK_ERROR,
+                 true
+               );
+             } else {
+               handlePlaybackError(
+                 'Network error',
+                 PlayerErrorType.NETWORK_ERROR,
+                 true
+               );
+             }
           } else {
             handlePlaybackError(
               `MPEGTS error: ${details}`,
