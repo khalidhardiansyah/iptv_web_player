@@ -1,0 +1,633 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import Hls from 'hls.js';
+// Import dashjs dynamically to avoid SSR issues
+import { AlertCircle, Loader2, Maximize, Minimize } from 'lucide-react';
+import {
+  StreamFormat,
+  PlayerErrorType,
+  type PerformanceMetrics,
+} from '@/types/video-player.types';
+import {
+  detectStreamFormat,
+  getDeviceCapabilities,
+  getOptimalHlsConfig,
+  getOptimalDashConfig,
+  supportsNativeHLS,
+} from '@/lib/video-utils';
+
+// Type declaration for dashjs and mpegts
+type DashPlayerType = any;
+type MpegtsPlayerType = any;
+
+interface VideoPlayerProps {
+  src: string | null;
+  poster?: string;
+  autoPlay?: boolean;
+}
+
+export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlayerProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [buffering, setBuffering] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const hlsRef = useRef<Hls | null>(null);
+  const dashPlayerRef = useRef<DashPlayerType | null>(null);
+  const mpegtsPlayerRef = useRef<MpegtsPlayerType | null>(null);
+  const [useProxy, setUseProxy] = useState(false);
+  const [metrics, setMetrics] = useState<PerformanceMetrics>({
+    bufferLength: 0,
+    droppedFrames: 0,
+    currentBitrate: 0,
+    currentLevel: 0,
+    loadingTime: 0,
+    qualitySwitches: 0,
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Reset state
+    setError(null);
+    setLoading(!!src);
+    setBuffering(false);
+    retryCountRef.current = 0;
+
+    // Cleanup previous instances
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (dashPlayerRef.current) {
+      dashPlayerRef.current.reset();
+      dashPlayerRef.current = null;
+    }
+
+    if (mpegtsPlayerRef.current) {
+      try {
+        mpegtsPlayerRef.current.unload();
+        mpegtsPlayerRef.current.destroy();
+      } catch (e) {
+        console.warn('Error destroying mpegts player:', e);
+      }
+      mpegtsPlayerRef.current = null;
+    }
+
+    if (!src) {
+      setStreamFormat(StreamFormat.UNKNOWN);
+      return;
+    }
+
+    // Detect stream format
+    const format = detectStreamFormat(src);
+    setStreamFormat(format);
+
+    // Get device capabilities
+    const capabilities = getDeviceCapabilities();
+
+    // Determine final URL (with proxy if needed)
+    // IMPORTANT: Only encode once to prevent "Failed to parse URL" errors
+    // IMPORTANT: mpegts.js worker requires absolute URLs, not relative paths
+    // For MPEGTS streams, use proxy from the start to avoid CORS issues
+    let finalUrl = src;
+    const shouldUseProxy = useProxy || (format === StreamFormat.MPEGTS && !src.includes('/api/stream'));
+    
+    if (shouldUseProxy) {
+      const encodedUrl = encodeURIComponent(src);
+      // Convert to absolute URL for worker compatibility
+      if (typeof window !== 'undefined') {
+        finalUrl = `${window.location.origin}/api/stream?url=${encodedUrl}`;
+      } else {
+        finalUrl = `/api/stream?url=${encodedUrl}`;
+      }
+    }
+
+    console.log('Initializing video player:', {
+      src: finalUrl,
+      originalSrc: src,
+      format,
+      useProxy,
+      capabilities: {
+        isMobile: capabilities.isMobile,
+        isLowEnd: capabilities.isLowEnd,
+        supportsHardwareAcceleration: capabilities.supportsHardwareAcceleration,
+        connection: capabilities.connection?.effectiveType,
+      },
+    });
+
+    const handleLoadedData = () => {
+      setLoading(false);
+      setBuffering(false);
+    };
+
+    const handleWaiting = () => {
+      setBuffering(true);
+    };
+
+    const handlePlaying = () => {
+      setBuffering(false);
+    };
+
+    const handleError = (e: Event) => {
+      const videoElement = e.target as HTMLVideoElement;
+      const error = videoElement.error;
+      
+      let errorMessage = 'Error loading video stream.';
+      let errorDetails = '';
+      
+      if (error) {
+        switch (error.code) {
+          case error.MEDIA_ERR_ABORTED:
+            errorDetails = 'Video playback was aborted';
+            break;
+          case error.MEDIA_ERR_NETWORK:
+            errorDetails = 'Network error while loading video';
+            break;
+          case error.MEDIA_ERR_DECODE:
+            errorDetails = 'Video decoding failed';
+            break;
+          case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+            errorDetails = 'Video format not supported';
+            break;
+          default:
+            errorDetails = 'Unknown video error';
+        }
+        
+        if (error.message) {
+          errorDetails += `: ${error.message}`;
+        }
+        
+        errorMessage = errorDetails;
+      }
+      
+      console.error('Video Error:', {
+        event: e,
+        error: error,
+        code: error?.code,
+        message: error?.message,
+        src: videoElement.src,
+        networkState: videoElement.networkState,
+        readyState: videoElement.readyState,
+      });
+      
+      handlePlaybackError(errorMessage, PlayerErrorType.MEDIA_ERROR);
+    };
+
+    video.addEventListener('loadeddata', handleLoadedData);
+    video.addEventListener('waiting', handleWaiting);
+    video.addEventListener('playing', handlePlaying);
+    video.addEventListener('error', handleError);
+
+    // Initialize player based on format
+    if (format === StreamFormat.DASH) {
+      initializeDashPlayer(video, finalUrl, capabilities);
+    } else if (format === StreamFormat.HLS) {
+      initializeHlsPlayer(video, finalUrl, capabilities);
+    } else if (format === StreamFormat.MPEGTS) {
+      initializeMpegtsPlayer(video, finalUrl, capabilities);
+    } else if (format === StreamFormat.MP4) {
+      // Direct MP4 playback
+      video.src = finalUrl;
+      if (autoPlay) {
+        video.play().catch((e) => console.log('Autoplay blocked', e));
+      }
+    } else {
+      // Try HLS by default for unknown formats
+      initializeHlsPlayer(video, finalUrl, capabilities);
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+      }
+      if (dashPlayerRef.current) {
+        dashPlayerRef.current.reset();
+      }
+      if (mpegtsPlayerRef.current) {
+        try {
+          mpegtsPlayerRef.current.unload();
+          mpegtsPlayerRef.current.destroy();
+        } catch (e) {
+          console.warn('Error cleaning up mpegts player:', e);
+        }
+      }
+      video.removeEventListener('loadeddata', handleLoadedData);
+      video.removeEventListener('waiting', handleWaiting);
+      video.removeEventListener('playing', handlePlaying);
+      video.removeEventListener('error', handleError);
+    };
+  }, [src, autoPlay, useProxy]);
+
+  const handlePlaybackError = (message: string, type: PlayerErrorType, fatal = true) => {
+    console.error(`${type}:`, message);
+
+    if (fatal && retryCountRef.current < maxRetries) {
+      retryCountRef.current++;
+      console.log(`Retrying... (${retryCountRef.current}/${maxRetries})`);
+
+      // Retry after delay with exponential backoff
+      const delay = Math.min(1000 * Math.pow(2, retryCountRef.current - 1), 5000);
+      
+      // If we haven't tried proxy yet and we're retrying, try enabling proxy
+      if (!useProxy && retryCountRef.current >= 1) {
+        console.log('Retrying with proxy...');
+        setUseProxy(true);
+        return;
+      }
+
+      setTimeout(() => {
+        if (hlsRef.current) {
+          hlsRef.current.startLoad();
+        } else if (dashPlayerRef.current && videoRef.current) {
+          dashPlayerRef.current.play();
+        } else if (mpegtsPlayerRef.current) {
+          // Must unload before load to avoid "load() has been called" error
+          try {
+            mpegtsPlayerRef.current.unload();
+          } catch (e) {
+            console.warn('Error unloading before retry:', e);
+          }
+          mpegtsPlayerRef.current.load();
+          mpegtsPlayerRef.current.play();
+        }
+      }, delay);
+    } else {
+      setError(message);
+      setLoading(false);
+      setBuffering(false);
+    }
+  };
+
+  const initializeHlsPlayer = (
+    video: HTMLVideoElement,
+    url: string,
+    capabilities: ReturnType<typeof getDeviceCapabilities>
+  ) => {
+    // Check for native HLS support (Safari/Mobile)
+    // Prefer HLS.js on desktop for better control and error handling
+    if (supportsNativeHLS() && capabilities.isMobile) {
+      console.log('Using native HLS support (Mobile)');
+      video.src = url;
+      video.addEventListener('loadedmetadata', () => {
+        setLoading(false);
+        if (autoPlay) video.play().catch((e) => console.log('Autoplay blocked', e));
+      });
+      return;
+    }
+
+    // Use HLS.js
+    if (!Hls.isSupported()) {
+      setError('HLS is not supported in this browser.');
+      setLoading(false);
+      return;
+    }
+
+    const config = getOptimalHlsConfig(capabilities);
+    const hls = new Hls(config);
+    hlsRef.current = hls;
+
+    hls.loadSource(url);
+    hls.attachMedia(video);
+
+    // Track quality switches
+    let qualitySwitchCount = 0;
+
+    hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+      console.log('HLS Manifest Parsed:', data);
+      setLoading(false);
+
+      if (autoPlay) {
+        video.play().catch((e) => console.log('Autoplay blocked', e));
+      }
+    });
+
+    hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+      qualitySwitchCount++;
+      console.log('Quality switched to level:', data.level);
+
+      setMetrics((prev) => ({
+        ...prev,
+        currentLevel: data.level,
+        qualitySwitches: qualitySwitchCount,
+      }));
+    });
+
+    hls.on(Hls.Events.FRAG_BUFFERED, (event, data) => {
+      const buffered = video.buffered;
+      if (buffered.length > 0) {
+        const bufferLength = buffered.end(buffered.length - 1) - video.currentTime;
+        setMetrics((prev) => ({
+          ...prev,
+          bufferLength,
+        }));
+      }
+    });
+
+    hls.on(Hls.Events.ERROR, (event, data) => {
+      console.error('HLS Error:', data);
+
+      if (data.fatal) {
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            console.error('Network error, trying to recover...');
+            handlePlaybackError(
+              'Network error. Retrying...',
+              PlayerErrorType.NETWORK_ERROR,
+              true
+            );
+            hls.startLoad();
+            break;
+
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            console.error('Media error, trying to recover...');
+            hls.recoverMediaError();
+            break;
+
+          default:
+            console.error('Unrecoverable error', data);
+            hls.destroy();
+            handlePlaybackError(
+              `Stream error: ${data.details}`,
+              PlayerErrorType.UNKNOWN_ERROR,
+              true
+            );
+            break;
+        }
+      }
+    });
+
+    // Monitor performance
+    const performanceInterval = setInterval(() => {
+      if (video && hls) {
+        const quality = hls.levels[hls.currentLevel];
+
+        setMetrics((prev) => ({
+          ...prev,
+          currentBitrate: quality?.bitrate || 0,
+        }));
+      }
+    }, 5000);
+
+    return () => clearInterval(performanceInterval);
+  };
+
+  const initializeDashPlayer = async (
+    video: HTMLVideoElement,
+    url: string,
+    capabilities: ReturnType<typeof getDeviceCapabilities>
+  ) => {
+    try {
+      // Dynamically import dashjs only when needed (client-side only)
+      const dashjs = (await import('dashjs')).default;
+      
+      const config = getOptimalDashConfig(capabilities);
+      const player = dashjs.MediaPlayer().create();
+      dashPlayerRef.current = player;
+
+      player.initialize(video, url, autoPlay);
+      // Apply settings (dashjs has its own config structure)
+      if (config.streaming) {
+        player.updateSettings(config as any);
+      }
+
+      // Track quality switches
+      let qualitySwitchCount = 0;
+
+      player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+        console.log('DASH Stream Initialized');
+        setLoading(false);
+      });
+
+      player.on(dashjs.MediaPlayer.events.PLAYBACK_STARTED, () => {
+        console.log('DASH Playback Started');
+        setBuffering(false);
+      });
+
+      player.on(dashjs.MediaPlayer.events.PLAYBACK_WAITING, () => {
+        setBuffering(true);
+      });
+
+      player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, (e: any) => {
+        qualitySwitchCount++;
+        console.log('DASH Quality changed:', e);
+
+        setMetrics((prev) => ({
+          ...prev,
+          currentLevel: e.newQuality,
+          qualitySwitches: qualitySwitchCount,
+        }));
+      });
+
+      player.on(dashjs.MediaPlayer.events.ERROR, (e: any) => {
+        console.error('DASH Error:', e);
+        handlePlaybackError(
+          `DASH error: ${e.error}`,
+          PlayerErrorType.UNKNOWN_ERROR,
+          true
+        );
+      });
+
+      // Monitor performance
+      const performanceInterval = setInterval(() => {
+        if (player) {
+          const dashMetrics = player.getDashMetrics();
+          const bitrateInfo = player.getBitrateInfoListFor('video');
+
+          if (bitrateInfo && bitrateInfo.length > 0) {
+            const currentQuality = player.getQualityFor('video');
+            const currentBitrate = bitrateInfo[currentQuality]?.bitrate || 0;
+
+            setMetrics((prev) => ({
+              ...prev,
+              currentBitrate,
+            }));
+          }
+
+          // Track dropped frames if available
+          const videoElement = player.getVideoElement() as any;
+          const droppedFrames = videoElement?.webkitDecodedFrameCount || 0;
+          setMetrics((prev) => ({
+            ...prev,
+            droppedFrames,
+          }));
+        }
+      }, 5000);
+
+      return () => clearInterval(performanceInterval);
+    } catch (error) {
+      console.error('Failed to load dashjs:', error);
+      handlePlaybackError(
+        'Failed to initialize DASH player',
+        PlayerErrorType.UNKNOWN_ERROR,
+        true
+      );
+    }
+  };
+
+  const initializeMpegtsPlayer = async (
+    video: HTMLVideoElement,
+    url: string,
+    capabilities: ReturnType<typeof getDeviceCapabilities>
+  ) => {
+    try {
+      // Dynamically import mpegts.js
+      const mpegts = (await import('mpegts.js')).default;
+
+      if (mpegts.isSupported()) {
+        const player = mpegts.createPlayer({
+          type: 'mpegts',
+          url: url,
+          isLive: true,
+          cors: true,
+        }, {
+          enableWorker: !capabilities.isLowEnd,
+          lazyLoadMaxDuration: 3 * 60,
+          seekType: 'range',
+        });
+
+        mpegtsPlayerRef.current = player;
+        player.attachMediaElement(video);
+        
+        // Set video to muted for autoplay compatibility
+        video.muted = true;
+        
+        player.load();
+
+        if (autoPlay) {
+          const playPromise = player.play();
+          if (playPromise !== undefined) {
+            playPromise.catch((e: any) => console.log('Autoplay blocked', e));
+          }
+        }
+
+        player.on(mpegts.Events.ERROR, (type: any, details: any, data: any) => {
+          console.error('MPEGTS Error:', { type, details, data });
+          if (type === mpegts.ErrorTypes.NETWORK_ERROR) {
+             handlePlaybackError(
+              'Network error',
+              PlayerErrorType.NETWORK_ERROR,
+              true
+            );
+          } else {
+            handlePlaybackError(
+              `MPEGTS error: ${details}`,
+              PlayerErrorType.MEDIA_ERROR,
+              true
+            );
+          }
+        });
+
+        player.on(mpegts.Events.LOADING_COMPLETE, () => {
+          setLoading(false);
+        });
+
+        // Monitor statistics
+        const statsInterval = setInterval(() => {
+          if (player && mpegtsPlayerRef.current) {
+            try {
+              const stats = player.statisticsInfo as any;
+              if (stats) {
+                setMetrics((prev) => ({
+                  ...prev,
+                  currentBitrate: (stats.speed || 0) * 8 * 1024, // speed is in KB/s
+                  droppedFrames: (stats.decodedFrames || 0) - (stats.renderedFrames || 0),
+                }));
+              }
+            } catch (e) {
+              // Ignore errors from accessing statistics
+            }
+          }
+        }, 1000);
+
+        return () => clearInterval(statsInterval);
+      } else {
+        setError('MPEG-TS is not supported in this browser.');
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Failed to load mpegts.js:', error);
+      handlePlaybackError(
+        'Failed to initialize MPEG-TS player',
+        PlayerErrorType.UNKNOWN_ERROR,
+        true
+      );
+    }
+  };
+
+  if (!src) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-black text-gray-500">
+        <p>Select a channel to play</p>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="relative w-full h-full bg-black rounded-lg overflow-hidden group">
+      {/* Loading Indicator */}
+      {loading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/50 backdrop-blur-sm">
+          <Loader2 className="w-10 h-10 text-white animate-spin mb-2" />
+          <p className="text-white text-sm">Loading stream...</p>
+        </div>
+      )}
+
+      {/* Buffering Indicator */}
+      {!loading && buffering && (
+        <div className="absolute top-4 right-4 z-20 bg-black/70 backdrop-blur-sm px-3 py-2 rounded-lg flex items-center gap-2">
+          <Loader2 className="w-4 h-4 text-white animate-spin" />
+          <span className="text-white text-sm">Buffering...</span>
+        </div>
+      )}
+
+      {/* Error Display */}
+      {error && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/80 text-red-400 p-4 text-center">
+          <AlertCircle className="w-10 h-10 mb-2" />
+          <p className="mb-2">{error}</p>
+          {retryCountRef.current > 0 && (
+            <p className="text-sm text-gray-400">
+              Retry attempt: {retryCountRef.current}/{maxRetries}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Fullscreen Button */}
+      <button
+        onClick={toggleFullscreen}
+        className="absolute bottom-20 right-4 z-30 bg-black/70 backdrop-blur-sm p-2 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/90"
+        title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+      >
+        {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+      </button>
+
+      {/* Video Element */}
+      <video
+        ref={videoRef}
+        className="w-full h-full object-contain"
+        controls
+        poster={poster}
+        playsInline
+        preload="auto"
+      />
+    </div>
+  );
+}
