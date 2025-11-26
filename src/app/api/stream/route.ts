@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       headers.set('Range', range);
     }
 
-    console.log(`Proxying stream: ${targetUrl.toString()}`);
+
     
     // Add Referer and Origin headers for Xtream streams (some servers require this)
     const referer = targetUrl.origin;
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       cache: 'no-store',
     });
 
-    console.log(`Stream response status: ${response.status} ${response.statusText}`);
+
 
     if (!response.ok) {
       // Try to get error body for more details
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse('Stream has no content', { status: 500 });
     }
 
-    console.log('Streaming response with content-type:', contentType);
+
 
     // Return the stream - IMPORTANT: Don't await or buffer the body
     // Pass the ReadableStream directly to NextResponse

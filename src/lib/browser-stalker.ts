@@ -58,11 +58,8 @@ export class BrowserStalkerClient {
       headers['x-authorization'] = `Bearer ${this.token}`;
     }
 
-    console.log('Stalker API request:', {
-      action: params.type + '/' + params.action,
-      targetUrl: targetUrl.toString(),
-      hasToken: !!this.token,
-    });
+
+
 
     const response = await fetch(url.toString(), {
       method: 'GET',
@@ -105,14 +102,11 @@ export class BrowserStalkerClient {
     const text = await response.text();
     try {
       const data = JSON.parse(text);
-      console.log('API Response:', {
-        action: params.type + '/' + params.action,
-        success: true,
-        dataKeys: Object.keys(data),
-      });
+
+
       return data;
     } catch {
-      console.log('API Response (text):', text.substring(0, 100));
+
       return text;
     }
   }
@@ -192,7 +186,7 @@ export class BrowserStalkerClient {
 
       if (channels.length > 0) {
         allChannels = allChannels.concat(channels);
-        console.log(`Fetched page ${currentPage}: ${channels.length} channels (total so far: ${allChannels.length}/${totalItems})`);
+
       }
 
       // Check if there are more pages
@@ -203,7 +197,7 @@ export class BrowserStalkerClient {
       }
     }
 
-    console.log(`Total channels fetched for genre ${genreId}: ${allChannels.length}`);
+
     return allChannels;
   }
 
@@ -258,7 +252,7 @@ export class BrowserStalkerClient {
 
       if (items.length > 0) {
         allItems = allItems.concat(items);
-        console.log(`Fetched VOD page ${currentPage}: ${items.length} items (total: ${allItems.length}/${totalItems})`);
+
       }
 
       if (allItems.length >= totalItems || items.length === 0) {
@@ -311,7 +305,7 @@ export class BrowserStalkerClient {
 
       if (items.length > 0) {
         allItems = allItems.concat(items);
-        console.log(`Fetched Series page ${currentPage}: ${items.length} items (total: ${allItems.length}/${totalItems})`);
+
       }
 
       if (allItems.length >= totalItems || items.length === 0) {

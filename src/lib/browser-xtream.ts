@@ -83,7 +83,7 @@ export class BrowserXtreamClient {
 
   async authenticate(): Promise<XtreamAuthResponse> {
     try {
-      console.log('Xtream: Authenticating via API proxy...', { url: this.baseUrl, username: this.username });
+
       
       const data = await this.callApi('authenticate');
       
@@ -92,7 +92,7 @@ export class BrowserXtreamClient {
       }
       
       this.authInfo = data;
-      console.log('Xtream: Authentication successful', data.user_info);
+
       return data;
     } catch (error: any) {
       console.error('Xtream: Authentication failed', error);
@@ -109,10 +109,10 @@ export class BrowserXtreamClient {
 
   async getCategories(): Promise<XtreamCategory[]> {
     try {
-      console.log('Xtream: Fetching categories via API proxy...');
+
       
       const categories = await this.callApi('categories');
-      console.log('Xtream: Categories fetched', categories.length);
+
       return categories;
     } catch (error: any) {
       console.error('Xtream: Failed to fetch categories', error);
@@ -122,10 +122,10 @@ export class BrowserXtreamClient {
 
   async getChannels(categoryId: string): Promise<XtreamChannel[]> {
     try {
-      console.log('Xtream: Fetching channels for category', categoryId);
+
       
       const channels = await this.callApi('channels', { categoryId });
-      console.log('Xtream: Channels fetched', channels.length);
+
       return channels;
     } catch (error: any) {
       console.error('Xtream: Failed to fetch channels', error);
@@ -135,10 +135,10 @@ export class BrowserXtreamClient {
 
   async getLink(streamId: string): Promise<string> {
     try {
-      console.log('Xtream: Getting stream link for', streamId);
+
       
       const url = await this.callApi('link', { streamId });
-      console.log('Xtream: Stream URL generated', url);
+
       return url;
     } catch (error: any) {
       console.error('Xtream: Failed to get link', error);

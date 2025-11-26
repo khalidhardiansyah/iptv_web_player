@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 });
     }
 
-    console.log('Proxy request to:', targetUrl);
+
 
     // Forward all query params except 'url'
     const url = new URL(targetUrl);
@@ -35,12 +35,7 @@ export async function GET(request: NextRequest) {
       headers['Authorization'] = authorization;
     }
 
-    console.log('Request headers:', {
-      url: url.toString(),
-      userAgent: headers['User-Agent'],
-      hasCookie: !!cookie,
-      hasAuth: !!authorization,
-    });
+
 
     // Add timeout to prevent hanging requests
     const controller = new AbortController();
@@ -57,11 +52,11 @@ export async function GET(request: NextRequest) {
 
       clearTimeout(timeoutId);
 
-      console.log('Response status:', response.status);
+
 
       const data = await response.text();
       
-      console.log('Response data:', data.substring(0, 200)); // Log first 200 chars
+
       
       // Forward response headers
       const responseHeaders = new Headers();

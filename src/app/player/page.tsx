@@ -176,24 +176,24 @@ function PlayerContent() {
       // Authenticate based on client type (check if handshake method exists)
       if (typeof client.handshake === 'function') {
         await client.handshake();
-        console.log('Stalker handshake successful');
+
       } else if (typeof client.authenticate === 'function') {
         await client.authenticate();
-        console.log('Provider authentication successful');
+
       }
       
       // Fetch account profile
       try {
         const profile = await client.getProfile();
-        console.log('Profile data:', profile);
+
         setAccountInfo(profile);
       } catch (profileError) {
         console.error('Failed to fetch profile:', profileError);
       }
       
       const cats = await client.getCategories();
-      console.log('Categories response:', cats);
-      console.log('Categories count:', cats?.length || 0);
+
+
       
       // Normalize category data for different providers
       const normalizedCategories = cats?.map((cat: any) => ({
@@ -235,7 +235,7 @@ function PlayerContent() {
       })) || [];
       
       setVodCategories(normalizedCategories);
-      console.log(`VOD categories loaded: ${normalizedCategories.length}`);
+
     } catch (error) {
       console.error('Failed to fetch VOD categories', error);
     } finally {
@@ -256,7 +256,7 @@ function PlayerContent() {
       })) || [];
       
       setSeriesCategories(normalizedCategories);
-      console.log(`Series categories loaded: ${normalizedCategories.length}`);
+
     } catch (error) {
       console.error('Failed to fetch Series categories', error);
     } finally {
@@ -293,10 +293,10 @@ function PlayerContent() {
       if (contentType === 'live') {
         // Check if this is "All Channels" category
         if (categoryId === '__ALL__' && typeof clientRef.current.getAllChannels === 'function') {
-          console.log('Fetching all channels...');
+
           chs = await clientRef.current.getAllChannels();
           setTotalChannels(chs.length);
-          console.log(`Total channels: ${chs.length}`);
+
           // Only show first page
           chs = chs.slice(0, CHANNELS_PER_PAGE);
         } else {
@@ -322,7 +322,7 @@ function PlayerContent() {
         url: ch.url,
       })) || [];
       setChannels(normalizedChannels);
-      console.log(`Set ${normalizedChannels.length} channels for contentType: ${contentType}`);
+
     } catch (error) {
       console.error('Failed to fetch channels', error);
     } finally {
@@ -361,46 +361,40 @@ function PlayerContent() {
   };
 
   const handleChannelSelect = async (channel: Channel) => {
-    console.log('handleChannelSelect called with:', channel);
+
     if (!clientRef.current) return;
     setSelectedChannel(channel);
     setLoadingLink(true);
     setStreamUrl(null);
     try {
-      console.log('Getting stream link for channel:', channel.name);
-      console.log('Channel details:', JSON.stringify(channel, null, 2));
+
       
       let url: string;
       
       // Get stream URL based on provider type and content type
       if (providerType === 'stalker') {
         const cmd = channel.cmd || channel.id;
-        console.log('Content Type:', contentType);
-        console.log('Using command for create_link:', cmd);
+
         
         if (contentType === 'vod') {
-          console.log('Fetching VOD link...');
           url = await clientRef.current.getVODLink(cmd);
-          console.log('VOD link received:', url);
         } else if (contentType === 'series') {
-          console.log('Fetching Series link...');
           // For series, we need to show season/episode selection first
           // For now, just get the link (will enhance later)
           url = await clientRef.current.getSeriesLink(cmd, channel.id);
-          console.log('Series link received:', url);
         } else {
           url = await clientRef.current.getLink(cmd);
         }
       } else if (providerType === 'xtream') {
         const streamId = channel.stream_id?.toString() || channel.id;
-        console.log('Using stream_id for Xtream:', streamId);
+
         url = await clientRef.current.getLink(streamId);
       } else { // m3u
-        console.log('Using channel ID for M3U:', channel.id);
+
         url = await clientRef.current.getLink(channel.id);
       }
       
-      console.log('Raw stream URL from provider:', url);
+
       
       if (url) {
         // Only apply Stalker-specific URL fixes for Stalker provider
@@ -408,22 +402,20 @@ function PlayerContent() {
           // Remove ffrt or ffmpeg prefix if present
           if (url.startsWith('ffrt ')) {
               url = url.substring(5);
-              console.log('Removed ffrt prefix:', url);
+
           } else if (url.startsWith('ffmpeg ')) {
               url = url.substring(7);
-              console.log('Removed ffmpeg prefix:', url);
+
           }
 
           // Fix malformed recursive URLs
           if (url.includes('stream=') && url.match(/stream=[^\&]*\/play\/live\.php/)) {
-            console.log('Detected malformed recursive URL, attempting to fix...');
-            url = url.replace(/stream=[^\&]+\&stream=([0-9]+)/, 'stream=$1');
-            console.log('Fixed recursive URL:', url);
+
           }
 
           // Fix empty stream parameter
           if (url.includes('stream=&') || url.includes('stream=&')) {
-              console.log('Detected empty stream parameter, attempting to inject ID from cmd...');
+
               let streamId = '';
               const cmd = channel.cmd || '';
               if (cmd) {
@@ -439,14 +431,14 @@ function PlayerContent() {
               
               if (streamId) {
                   url = url.replace('stream=&', `stream=${streamId}&`);
-                  console.log('Injected stream ID into URL:', url);
+
               } else {
                   console.warn('Could not extract stream ID from cmd to fix empty stream parameter');
               }
           }
         }
         
-        console.log('Final stream URL:', url);
+
         setStreamUrl(url);
       } else {
         console.error('No stream URL received from provider');
@@ -511,7 +503,7 @@ function PlayerContent() {
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
-  console.log('Filtered channels count:', filteredChannels.length, 'Content type:', contentType);
+
 
   if (!mounted || !config) return null;
 

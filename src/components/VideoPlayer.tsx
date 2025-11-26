@@ -126,18 +126,8 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
       }
     }
 
-    console.log('Initializing video player:', {
-      src: finalUrl,
-      originalSrc: src,
-      format,
-      useProxy,
-      capabilities: {
-        isMobile: capabilities.isMobile,
-        isLowEnd: capabilities.isLowEnd,
-        supportsHardwareAcceleration: capabilities.supportsHardwareAcceleration,
-        connection: capabilities.connection?.effectiveType,
-      },
-    });
+
+
 
     const handleLoadedData = () => {
       setLoading(false);
@@ -213,7 +203,7 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
       // Direct MP4 playback
       video.src = finalUrl;
       if (autoPlay) {
-        video.play().catch((e) => console.log('Autoplay blocked', e));
+
       }
     } else {
       // Try HLS by default for unknown formats
@@ -247,14 +237,14 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
 
     if (fatal && retryCountRef.current < maxRetries) {
       retryCountRef.current++;
-      console.log(`Retrying... (${retryCountRef.current}/${maxRetries})`);
+
 
       // Retry after delay with exponential backoff
       const delay = Math.min(1000 * Math.pow(2, retryCountRef.current - 1), 5000);
       
       // If we haven't tried proxy yet and we're retrying, try enabling proxy
       if (!useProxy && retryCountRef.current >= 1) {
-        console.log('Retrying with proxy...');
+
         setUseProxy(true);
         return;
       }
@@ -290,11 +280,11 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
     // Check for native HLS support (Safari/Mobile)
     // Prefer HLS.js on desktop for better control and error handling
     if (supportsNativeHLS() && capabilities.isMobile) {
-      console.log('Using native HLS support (Mobile)');
+
       video.src = url;
       video.addEventListener('loadedmetadata', () => {
         setLoading(false);
-        if (autoPlay) video.play().catch((e) => console.log('Autoplay blocked', e));
+
       });
       return;
     }
@@ -317,17 +307,17 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
     let qualitySwitchCount = 0;
 
     hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
-      console.log('HLS Manifest Parsed:', data);
+
       setLoading(false);
 
       if (autoPlay) {
-        video.play().catch((e) => console.log('Autoplay blocked', e));
+
       }
     });
 
     hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
       qualitySwitchCount++;
-      console.log('Quality switched to level:', data.level);
+
 
       setMetrics((prev) => ({
         ...prev,
@@ -418,12 +408,12 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
       let qualitySwitchCount = 0;
 
       player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
-        console.log('DASH Stream Initialized');
+
         setLoading(false);
       });
 
       player.on(dashjs.MediaPlayer.events.PLAYBACK_STARTED, () => {
-        console.log('DASH Playback Started');
+
         setBuffering(false);
       });
 
@@ -433,7 +423,7 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
 
       player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, (e: any) => {
         qualitySwitchCount++;
-        console.log('DASH Quality changed:', e);
+
 
         setMetrics((prev) => ({
           ...prev,
@@ -520,7 +510,7 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
         if (autoPlay) {
           const playPromise = player.play();
           if (playPromise !== undefined) {
-            playPromise.catch((e: any) => console.log('Autoplay blocked', e));
+
           }
         }
 
@@ -609,7 +599,7 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
           (video as any).webkitEnterFullscreen();
           return;
         } catch (e) {
-          console.log('webkitEnterFullscreen failed, trying container fullscreen');
+
         }
       }
       
@@ -627,7 +617,7 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
         try {
           (video as any).webkitExitFullscreen();
         } catch (e) {
-          console.log('webkitExitFullscreen not available');
+
         }
       }
       

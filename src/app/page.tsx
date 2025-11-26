@@ -323,19 +323,19 @@ export default function LoginPage() {
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log('Delete clicked for portal:', id);
+
     setDeleteConfirmId(id);
   };
 
   const confirmDelete = async () => {
     if (deleteConfirmId) {
-      console.log('User confirmed deletion');
+
       try {
         const { error } = await supabase.from('portals').delete().eq('id', deleteConfirmId);
         if (error) throw error;
         
         await fetchPortals();
-        console.log('Portal deleted successfully');
+
       } catch (error) {
         console.error('Error deleting portal:', error);
       }
@@ -344,7 +344,7 @@ export default function LoginPage() {
   };
 
   const cancelDelete = () => {
-    console.log('User cancelled deletion');
+
     setDeleteConfirmId(null);
   };
 
@@ -381,7 +381,7 @@ export default function LoginPage() {
         setUsername(username);
         setPassword(password);
         setError('');
-        console.log('Parsed Xtream URL:', { serverUrl, username, password });
+
       } else {
         setError('Invalid Xtream URL format. Missing username or password parameters.');
       }

@@ -73,7 +73,7 @@ export class XtreamClient {
   async authenticate(): Promise<XtreamAuthResponse> {
     try {
       const url = this.getApiUrl('');
-      console.log('Xtream: Authenticating...', { url: this.baseUrl, username: this.username });
+
       
       const response = await fetch(url);
       if (!response.ok) {
@@ -87,7 +87,7 @@ export class XtreamClient {
       }
       
       this.authInfo = data;
-      console.log('Xtream: Authentication successful', data.user_info);
+
       return data;
     } catch (error: any) {
       console.error('Xtream: Authentication failed', error);
@@ -105,7 +105,7 @@ export class XtreamClient {
   async getCategories(): Promise<XtreamCategory[]> {
     try {
       const url = this.getApiUrl('get_live_categories');
-      console.log('Xtream: Fetching categories...');
+
       
       const response = await fetch(url);
       if (!response.ok) {
@@ -113,7 +113,7 @@ export class XtreamClient {
       }
       
       const categories = await response.json();
-      console.log('Xtream: Categories fetched', categories.length);
+
       return categories;
     } catch (error: any) {
       console.error('Xtream: Failed to fetch categories', error);
@@ -124,7 +124,7 @@ export class XtreamClient {
   async getChannels(categoryId: string): Promise<XtreamChannel[]> {
     try {
       const url = this.getApiUrl('get_live_streams', { category_id: categoryId });
-      console.log('Xtream: Fetching channels for category', categoryId);
+
       
       const response = await fetch(url);
       if (!response.ok) {
@@ -132,7 +132,7 @@ export class XtreamClient {
       }
       
       const channels = await response.json();
-      console.log('Xtream: Channels fetched', channels.length);
+
       return channels;
     } catch (error: any) {
       console.error('Xtream: Failed to fetch channels', error);
@@ -160,7 +160,7 @@ export class XtreamClient {
     // Build stream URL
     const streamUrl = `${protocol}://${hostname}:${port}/live/${this.username}/${this.password}/${streamId}.ts`;
     
-    console.log('Xtream: Generated stream URL', streamUrl);
+
     return streamUrl;
   }
 }

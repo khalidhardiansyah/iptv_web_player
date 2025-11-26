@@ -28,7 +28,7 @@ export class M3UClient {
 
   async fetchPlaylist(): Promise<void> {
     try {
-      console.log('M3U: Fetching playlist...', this.playlistUrl);
+
       
       const headers: HeadersInit = {};
       if (this.username && this.password) {
@@ -43,7 +43,7 @@ export class M3UClient {
 
       const content = await response.text();
       this.parseM3U(content);
-      console.log('M3U: Playlist parsed', { channels: this.channels.length, categories: this.categories.length });
+
     } catch (error: any) {
       console.error('M3U: Failed to fetch playlist', error);
       throw new Error(`Failed to fetch playlist: ${error.message}`);
