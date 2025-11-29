@@ -173,28 +173,61 @@ function PlayerContent() {
 
   const fetchCategories = async (client: any) => {
     setLoadingCategories(true);
+    let handshakeSuccess = false;
+    
     try {
       // Authenticate based on client type (check if handshake method exists)
+      console.log('🔐 Starting authentication...');
       if (typeof client.handshake === 'function') {
-        await client.handshake();
-
+        try {
+          await client.handshake();
+          console.log('✅ Handshake successful');
+          handshakeSuccess = true;
+        } catch (handshakeError: any) {
+          console.error('❌ Handshake failed:', handshakeError.message);
+          console.warn('⚠️ Attempting to continue without handshake...');
+          // Don't throw - try to continue anyway
+        }
       } else if (typeof client.authenticate === 'function') {
-        await client.authenticate();
-
+        try {
+          await client.authenticate();
+          console.log('✅ Authentication successful');
+          handshakeSuccess = true;
+        } catch (authError: any) {
+          console.error('❌ Authentication failed:', authError.message);
+          console.warn('⚠️ Attempting to continue without authentication...');
+          // Don't throw - try to continue anyway
+        }
       }
       
-      // Fetch account profile
-      try {
-        const profile = await client.getProfile();
-
-        setAccountInfo(profile);
-      } catch (profileError) {
-        console.error('Failed to fetch profile:', profileError);
+      // Fetch account profile (only if handshake succeeded)
+      if (handshakeSuccess) {
+        try {
+          const profile = await client.getProfile();
+          console.log('✅ Profile fetched');
+          setAccountInfo(profile);
+        } catch (profileError: any) {
+          console.error('❌ Failed to fetch profile:', profileError.message);
+          // Continue anyway - profile is not critical
+        }
       }
       
+      // Try to fetch categories even if handshake failed
+      console.log('📺 Fetching categories...');
       const cats = await client.getCategories();
+      console.log('📊 Categories response:', cats);
 
-
+      if (!cats || cats.length === 0) {
+        console.warn('⚠️ No categories returned from provider');
+        console.log('💡 Possible reasons:');
+        console.log('  1. Portal requires valid handshake/authentication');
+        console.log('  2. Portal has no Live TV categories');
+        console.log('  3. Portal is experiencing issues');
+        
+        // Set empty array to show UI is ready but no categories
+        setCategories([]);
+        return;
+      }
       
       // Normalize category data for different providers
       const normalizedCategories = cats?.map((cat: any) => ({
@@ -202,6 +235,8 @@ function PlayerContent() {
         title: cat.title || cat.category_name || 'Unknown',
         alias: cat.alias || ''
       })) || [];
+      
+      console.log(`✅ Normalized ${normalizedCategories.length} categories`);
       
       // Add "All Channels" as first category for Stalker
       if (typeof client.getAllChannels === 'function') {
@@ -213,11 +248,21 @@ function PlayerContent() {
       }
       
       setCategories(normalizedCategories);
-      if (!normalizedCategories || normalizedCategories.length === 0) {
-        console.warn('No categories returned from provider');
+      
+      if (normalizedCategories.length === 0) {
+        console.warn('⚠️ No categories after normalization');
+      } else {
+        console.log(`✅ Successfully loaded ${normalizedCategories.length} categories`);
       }
-    } catch (error) {
-      console.error('Failed to fetch categories', error);
+    } catch (error: any) {
+      console.error('❌ Failed to fetch categories:', error);
+      console.error('📋 Error details:', {
+        message: error.message,
+        name: error.name
+      });
+      
+      // Set empty array so UI shows "no categories" instead of loading forever
+      setCategories([]);
     } finally {
       setLoadingCategories(false);
     }

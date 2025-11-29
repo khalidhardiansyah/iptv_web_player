@@ -1,20 +1,17 @@
-'use client';
+/**
+ * Stalker Client for WebOS
+ * Converted from browser-stalker.ts for WebOS compatibility
+ */
 
-interface StalkerConfig {
-  baseUrl: string;
-  mac: string;
-}
-
-export class BrowserStalkerClient {
-  private baseUrl: string;
-  private mac: string;
-  private token: string | null = null;
-  private cookies: Map<string, string> = new Map();
-  private preferredMethod: 'GET' | 'POST' | null = null;
-
-  constructor(config: StalkerConfig) {
+class StalkerClient {
+  constructor(config) {
     this.baseUrl = config.baseUrl;
     this.mac = config.mac;
+    this.token = null;
+    this.cookies = new Map();
+    this.preferredMethod = null;
+    
+    // Initialize cookies
     this.cookies.set('mac', config.mac);
     this.cookies.set('stb_lang', 'en');
     this.cookies.set('timezone', 'Europe/Kiev');
@@ -23,13 +20,13 @@ export class BrowserStalkerClient {
     this.preferredMethod = this.getStoredMethod();
   }
 
-  private getCookieString(): string {
+  getCookieString() {
     return Array.from(this.cookies.entries())
       .map(([key, value]) => `${key}=${value}`)
       .join('; ');
   }
 
-  private getNormalizedBaseUrl(): string {
+  getNormalizedBaseUrl() {
     let normalized = this.baseUrl;
     // Remove /c/ suffix if present
     if (normalized.endsWith('/c/')) {
@@ -44,11 +41,11 @@ export class BrowserStalkerClient {
     return normalized;
   }
 
-  private getStorageKey(): string {
+  getStorageKey() {
     return `stalker_method_${this.getNormalizedBaseUrl()}`;
   }
 
-  private getStoredMethod(): 'GET' | 'POST' | null {
+  getStoredMethod() {
     if (typeof window === 'undefined') return null;
     const stored = localStorage.getItem(this.getStorageKey());
     if (stored === 'GET' || stored === 'POST') {
@@ -58,14 +55,14 @@ export class BrowserStalkerClient {
     return null;
   }
 
-  private savePreferredMethod(method: 'GET' | 'POST'): void {
+  savePreferredMethod(method) {
     if (typeof window === 'undefined') return;
     this.preferredMethod = method;
     localStorage.setItem(this.getStorageKey(), method);
     console.log(`Saved method preference: ${method}`);
   }
 
-  private isValidResponse(response: any): boolean {
+  isValidResponse(response) {
     // Check if response has expected Stalker structure
     return response && 
            typeof response === 'object' &&
@@ -74,9 +71,9 @@ export class BrowserStalkerClient {
             (response.hasOwnProperty('js') && response.js !== null));
   }
 
-  private async makeRequest(params: Record<string, any>, method?: 'GET' | 'POST', isRetry = false, signal?: AbortSignal): Promise<any> {
+  async makeRequest(params, method, isRetry = false, signal) {
     // Determine which method to use
-    let requestMethod: 'GET' | 'POST';
+    let requestMethod;
     
     if (method) {
       // Explicit method specified
@@ -91,58 +88,47 @@ export class BrowserStalkerClient {
       console.log('No method preference found, trying GET first');
     }
 
-    const url = new URL('/api/proxy', window.location.origin);
-    
-    // Add target URL
     // Handle portal URLs that end with /c/
     let baseUrl = this.baseUrl;
     if (baseUrl.endsWith('/c/')) {
-      baseUrl = baseUrl.slice(0, -3); // Remove /c/
+      baseUrl = baseUrl.slice(0, -3);
     } else if (baseUrl.endsWith('/c')) {
-      baseUrl = baseUrl.slice(0, -2); // Remove /c
+      baseUrl = baseUrl.slice(0, -2);
     }
 
-    // Ensure baseUrl doesn't end with slash for consistent path joining
+    // Ensure baseUrl doesn't end with slash
     if (baseUrl.endsWith('/')) {
       baseUrl = baseUrl.slice(0, -1);
     }
 
-    const targetUrl = new URL(`${baseUrl}/server/load.php`);
+    let targetUrl = `${baseUrl}/server/load.php`;
     
-    if (requestMethod === 'GET') {
-      // For GET, append params to targetUrl
-      const searchParams = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        searchParams.append(key, String(value));
-      });
-      
-      // Construct the full target URL with params
-      const separator = targetUrl.toString().includes('?') ? '&' : '?';
-      const fullTargetUrl = `${targetUrl.toString()}${separator}${searchParams.toString()}`;
-      
-      url.searchParams.set('url', fullTargetUrl);
-    } else {
-      // For POST, we send the base URL to proxy, and params in body
-      url.searchParams.set('url', targetUrl.toString());
-    }
-
-    const headers: HeadersInit = {
-      'x-user-agent': 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3',
-      'x-cookie': this.getCookieString(),
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3',
+      'Cookie': this.getCookieString(),
     };
 
     if (this.token) {
-      headers['x-authorization'] = `Bearer ${this.token}`;
+      headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions = {
       method: requestMethod,
       headers,
       signal,
     };
 
-    if (requestMethod === 'POST') {
-      // Create form data string
+    if (requestMethod === 'GET') {
+      // For GET, append params to URL
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        searchParams.append(key, String(value));
+      });
+      
+      const separator = targetUrl.includes('?') ? '&' : '?';
+      targetUrl = `${targetUrl}${separator}${searchParams.toString()}`;
+    } else {
+      // For POST, send params in body
       const searchParams = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
         searchParams.append(key, String(value));
@@ -152,7 +138,7 @@ export class BrowserStalkerClient {
     }
 
     try {
-      const response = await fetch(url.toString(), fetchOptions);
+      const response = await fetch(targetUrl, fetchOptions);
 
       if (!response.ok) {
         // If request failed and we haven't retried yet, try the other method
@@ -174,7 +160,6 @@ export class BrowserStalkerClient {
           }
           console.error('API Error:', errorData);
         } catch {
-          // Response is not JSON, use status text
           errorMessage = `${errorMessage} - ${response.statusText}`;
         }
         
@@ -182,7 +167,7 @@ export class BrowserStalkerClient {
       }
 
       // Update cookies from response
-      const setCookie = response.headers.get('x-set-cookie');
+      const setCookie = response.headers.get('set-cookie');
       if (setCookie) {
         const cookies = setCookie.split(',');
         cookies.forEach(cookie => {
@@ -276,8 +261,8 @@ export class BrowserStalkerClient {
     return response?.js || [];
   }
 
-  async getChannels(genreId: string, firstPageOnly = false, signal?: AbortSignal) {
-    let allChannels: any[] = [];
+  async getChannels(genreId, firstPageOnly = false, signal) {
+    let allChannels = [];
     let currentPage = 1;
     let hasMorePages = true;
 
@@ -295,22 +280,18 @@ export class BrowserStalkerClient {
 
       const channels = response?.js?.data || [];
       const totalItems = response?.js?.total_items || 0;
-      const maxPageItems = response?.js?.max_page_items || 14;
 
       if (channels.length > 0) {
         allChannels = allChannels.concat(channels);
-
       }
 
       // Check if there are more pages
-      // If firstPageOnly is true, stop after first page
       if (firstPageOnly || allChannels.length >= totalItems || channels.length === 0) {
         hasMorePages = false;
       } else {
         currentPage++;
       }
     }
-
 
     return allChannels;
   }
@@ -323,7 +304,7 @@ export class BrowserStalkerClient {
     return response?.js?.data || response?.js || [];
   }
 
-  async getLink(cmd: string) {
+  async getLink(cmd) {
     const response = await this.makeRequest({
       type: 'itv',
       action: 'create_link',
@@ -347,8 +328,8 @@ export class BrowserStalkerClient {
     return response?.js || [];
   }
 
-  async getVODItems(categoryId: string, firstPageOnly = false, signal?: AbortSignal) {
-    let allItems: any[] = [];
+  async getVODItems(categoryId, firstPageOnly = false, signal) {
+    let allItems = [];
     let currentPage = 1;
     let hasMorePages = true;
 
@@ -366,7 +347,6 @@ export class BrowserStalkerClient {
 
       if (items.length > 0) {
         allItems = allItems.concat(items);
-
       }
 
       if (firstPageOnly || allItems.length >= totalItems || items.length === 0) {
@@ -379,7 +359,7 @@ export class BrowserStalkerClient {
     return allItems;
   }
 
-  async getVODLink(cmd: string) {
+  async getVODLink(cmd) {
     const response = await this.makeRequest({
       type: 'vod',
       action: 'create_link',
@@ -400,8 +380,8 @@ export class BrowserStalkerClient {
     return response?.js || [];
   }
 
-  async getSeriesItems(categoryId: string, firstPageOnly = false, signal?: AbortSignal) {
-    let allItems: any[] = [];
+  async getSeriesItems(categoryId, firstPageOnly = false, signal) {
+    let allItems = [];
     let currentPage = 1;
     let hasMorePages = true;
 
@@ -419,7 +399,6 @@ export class BrowserStalkerClient {
 
       if (items.length > 0) {
         allItems = allItems.concat(items);
-
       }
 
       if (firstPageOnly || allItems.length >= totalItems || items.length === 0) {
@@ -432,7 +411,7 @@ export class BrowserStalkerClient {
     return allItems;
   }
 
-  async getSeriesSeasons(seriesId: string) {
+  async getSeriesSeasons(seriesId) {
     const response = await this.makeRequest({
       type: 'series',
       action: 'get_ordered_list',
@@ -442,7 +421,7 @@ export class BrowserStalkerClient {
     return response?.js?.data || [];
   }
 
-  async getSeriesEpisodes(seriesId: string, seasonId: string) {
+  async getSeriesEpisodes(seriesId, seasonId) {
     const response = await this.makeRequest({
       type: 'series',
       action: 'get_ordered_list',
@@ -452,7 +431,7 @@ export class BrowserStalkerClient {
     return response?.js?.data || [];
   }
 
-  async getSeriesLink(cmd: string, seriesId: string) {
+  async getSeriesLink(cmd, seriesId) {
     const response = await this.makeRequest({
       type: 'series',
       action: 'create_link',
@@ -464,3 +443,5 @@ export class BrowserStalkerClient {
     return response?.js?.cmd || null;
   }
 }
+
+export default StalkerClient;
