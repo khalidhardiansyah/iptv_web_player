@@ -427,7 +427,7 @@ export default function LoginPage() {
                   className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/20 rounded-3xl p-8 hover:from-white/15 hover:to-white/10 transition-all cursor-pointer hover:scale-[1.02] hover:shadow-2xl hover:shadow-blue-500/20 hover:border-blue-500/30 min-h-[280px] flex flex-col"
                 >
                   {/* Action Buttons */}
-                  <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10">
+                  <div className="absolute top-6 right-6 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex gap-2 z-10">
                     <button
                       onClick={(e) => { e.stopPropagation(); handleEdit(portal); }}
                       className="p-2.5 bg-black/40 hover:bg-black/60 backdrop-blur rounded-xl text-gray-300 hover:text-white transition-all"

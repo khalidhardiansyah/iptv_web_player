@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 // Import dashjs dynamically to avoid SSR issues
-import { AlertCircle, Loader2, Maximize, Minimize } from 'lucide-react';
+import { AlertCircle, Loader2, Maximize, Minimize, Film } from 'lucide-react';
 import {
   StreamFormat,
   PlayerErrorType,
@@ -16,6 +16,14 @@ import {
   getOptimalDashConfig,
   supportsNativeHLS,
 } from '@/lib/video-utils';
+import {
+  convertMKVToMP4,
+  isMKVFile,
+  supportsWebCodecs,
+} from '@/lib/mkv-handler';
+
+
+
 
 // Type declaration for dashjs and mpegts
 type DashPlayerType = any;
@@ -47,10 +55,12 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
     qualitySwitches: 0,
   });
 
-  // Missing refs and state
   const retryCountRef = useRef(0);
   const [streamFormat, setStreamFormat] = useState<StreamFormat>(StreamFormat.UNKNOWN);
   const maxRetries = 3;
+  const [transmuxProgress, setTransmuxProgress] = useState<number>(0);
+  const [isTransmuxing, setIsTransmuxing] = useState(false);
+
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -89,10 +99,27 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
 
     if (mpegtsPlayerRef.current) {
       try {
-        mpegtsPlayerRef.current.unload();
-        mpegtsPlayerRef.current.destroy();
+        // Check if player instance is valid before calling methods
+        if (mpegtsPlayerRef.current) {
+          try {
+             mpegtsPlayerRef.current.unload();
+          } catch (unloadError: any) {
+             // Ignore specific unload error from mpegts.js
+             if (unloadError?.message?.includes('Cannot read properties of null')) {
+               // This is a known bug in mpegts.js during cleanup
+             } else {
+               console.warn('Error unloading mpegts player:', unloadError);
+             }
+          }
+          
+          try {
+            mpegtsPlayerRef.current.destroy();
+          } catch (destroyError) {
+             console.warn('Error destroying mpegts player:', destroyError);
+          }
+        }
       } catch (e) {
-        console.warn('Error destroying mpegts player:', e);
+        console.warn('General error cleaning up mpegts player:', e);
       }
       mpegtsPlayerRef.current = null;
     }
@@ -100,6 +127,56 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
     if (!src) {
       setStreamFormat(StreamFormat.UNKNOWN);
       return;
+    }
+
+    // Check if this is an MKV file and convert it
+    if (isMKVFile(src)) {
+      const handleMKVConversion = async () => {
+        try {
+          // Check if browser supports WebCodecs
+          if (!supportsWebCodecs()) {
+            setError('MKV files require a modern browser (Chrome 94+, Edge 94+, or Safari 16.4+). Please use the download button below or try a different browser.');
+            setLoading(false);
+            return;
+          }
+
+          setIsTransmuxing(true);
+          setLoading(true);
+          setError(null);
+
+          // Convert MKV to MP4
+          const mp4Url = await convertMKVToMP4(src, (progress, message) => {
+            setTransmuxProgress(progress);
+            // You could also update a status message here if needed
+          });
+
+          // Once converted, update src to the MP4 blob URL
+          // This will trigger the useEffect again with the MP4 URL
+          setIsTransmuxing(false);
+          
+          // Use the converted MP4 URL
+          // We'll set it as the video source directly
+          const video = videoRef.current;
+          if (video) {
+            video.src = mp4Url;
+            if (autoPlay) {
+              video.play().catch(e => console.warn('Autoplay failed:', e));
+            }
+          }
+          setLoading(false);
+          return; // Exit early, we've handled the MKV
+
+        } catch (error: any) {
+          console.error('MKV conversion failed:', error);
+          setError(`Failed to convert MKV file: ${error.message}. Please use the download button below.`);
+          setIsTransmuxing(false);
+          setLoading(false);
+          return;
+        }
+      };
+
+      handleMKVConversion();
+      return; // Exit useEffect, conversion will handle playback
     }
 
     // Detect stream format
@@ -344,7 +421,13 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
     hls.on(Hls.Events.ERROR, (event, data) => {
       console.error('HLS Error:', data);
 
-      if (data.fatal) {
+      // Handle specific non-fatal errors that should be treated as fatal to trigger retry
+      // "DEMUXER_ERROR_COULD_NOT_OPEN" often appears in data.details or data.error.message
+      // It usually indicates a stream format issue or CORS/Network issue that Hls.js can't recover from easily
+      const isDemuxerError = data.details === 'fragParsingError' || 
+                             (data.error && data.error.message && data.error.message.includes('DEMUXER_ERROR_COULD_NOT_OPEN'));
+
+      if (data.fatal || isDemuxerError) {
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
             console.error('Network error, trying to recover...');
@@ -357,8 +440,18 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
             break;
 
           case Hls.ErrorTypes.MEDIA_ERROR:
-            console.error('Media error, trying to recover...');
-            hls.recoverMediaError();
+            if (isDemuxerError) {
+               console.error('Demuxer error detected, treating as fatal to trigger proxy retry...');
+               hls.destroy();
+               handlePlaybackError(
+                 'Stream format or access error. Retrying with proxy...',
+                 PlayerErrorType.MEDIA_ERROR,
+                 true
+               );
+            } else {
+              console.error('Media error, trying to recover...');
+              hls.recoverMediaError();
+            }
             break;
 
           default:
@@ -661,11 +754,24 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
       className="relative w-full h-full bg-black group overflow-hidden"
       onDoubleClick={toggleFullscreen}
     >
-      {/* Loading Spinner */}
+      {/* Loading Spinner / Conversion Progress */}
       {loading && (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/50 backdrop-blur-sm">
           <Loader2 className="w-10 h-10 text-white animate-spin mb-2" />
-          <p className="text-white text-sm">Loading stream...</p>
+          {isTransmuxing ? (
+            <>
+              <p className="text-white text-sm mb-2">Converting MKV to MP4...</p>
+              <div className="w-64 h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-500 transition-all duration-300"
+                  style={{ width: `${transmuxProgress}%` }}
+                />
+              </div>
+              <p className="text-white text-xs mt-2">{Math.round(transmuxProgress)}%</p>
+            </>
+          ) : (
+            <p className="text-white text-sm">Loading stream...</p>
+          )}
         </div>
       )}
 
@@ -679,11 +785,37 @@ export default function VideoPlayer({ src, poster, autoPlay = true }: VideoPlaye
 
       {/* Error Display */}
       {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/80 text-red-400 p-4 text-center">
-          <AlertCircle className="w-10 h-10 mb-2" />
-          <p className="mb-2">{error}</p>
-          {retryCountRef.current > 0 && (
-            <p className="text-sm text-gray-400">
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/90 text-white p-6 text-center">
+          <AlertCircle className="w-12 h-12 mb-3 text-red-400" />
+          <p className="mb-2 text-lg font-semibold">Playback Error</p>
+          <p className="mb-6 text-gray-300 max-w-md">{error}</p>
+          
+          {/* Download Button for failed streams */}
+          {src && (
+            <div className="flex flex-col items-center gap-3">
+              {src.includes('.mkv') && (
+                <p className="text-sm text-yellow-400 mb-2">
+                  ⚠️ MKV files cannot be played in browser. Please download to watch in VLC or other media player.
+                </p>
+              )}
+              <a 
+                href={src} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-all transform hover:scale-105 flex items-center gap-2 shadow-lg"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Film className="w-5 h-5" />
+                <span className="font-semibold">Download Video</span>
+              </a>
+              <p className="text-xs text-gray-400 mt-2">
+                Recommended: VLC Media Player (supports multi-audio & subtitles)
+              </p>
+            </div>
+          )}
+          
+          {retryCountRef.current > 0 && !src.includes('.mkv') && (
+            <p className="text-sm text-gray-400 mt-4">
               Retry attempt: {retryCountRef.current}/{maxRetries}
             </p>
           )}

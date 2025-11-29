@@ -25,7 +25,7 @@ export class BrowserStalkerClient {
       .join('; ');
   }
 
-  private async makeRequest(params: Record<string, any>) {
+  private async makeRequest(params: Record<string, any>, method: 'GET' | 'POST' = 'GET', isRetry = false, signal?: AbortSignal): Promise<any> {
     const url = new URL('/api/proxy', window.location.origin);
     
     // Add target URL
@@ -43,11 +43,35 @@ export class BrowserStalkerClient {
     }
 
     const targetUrl = new URL(`${baseUrl}/server/load.php`);
-    Object.entries(params).forEach(([key, value]) => {
-      targetUrl.searchParams.append(key, String(value));
-    });
     
-    url.searchParams.set('url', targetUrl.toString());
+    // For GET requests, append params to URL
+    // For POST requests, we'll send them in body but we also need to append them to targetUrl 
+    // because the proxy needs to know where to send the request, and Stalker often expects params in URL even for POST
+    // BUT for this specific case (Star4k), we want to avoid params in URL if possible or at least send them in body
+    
+    // Let's stick to appending to URL for targetUrl construction for the proxy's sake
+    // The proxy will strip them if we move them to body? No, the proxy forwards query params.
+    
+    // If we are doing POST, we should probably NOT put params in the URL if the goal is to hide them or if the server blocks them.
+    // However, the proxy takes 'url' param. 
+    
+    if (method === 'GET') {
+      // For GET, append params to targetUrl
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        searchParams.append(key, String(value));
+      });
+      
+      // Construct the full target URL with params
+      // We use string concatenation to avoid double encoding issues with URL object
+      const separator = targetUrl.toString().includes('?') ? '&' : '?';
+      const fullTargetUrl = `${targetUrl.toString()}${separator}${searchParams.toString()}`;
+      
+      url.searchParams.set('url', fullTargetUrl);
+    } else {
+      // For POST, we send the base URL to proxy, and params in body
+      url.searchParams.set('url', targetUrl.toString());
+    }
 
     const headers: HeadersInit = {
       'x-user-agent': 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3',
@@ -58,56 +82,84 @@ export class BrowserStalkerClient {
       headers['x-authorization'] = `Bearer ${this.token}`;
     }
 
-
-
-
-    const response = await fetch(url.toString(), {
-      method: 'GET',
+    const fetchOptions: RequestInit = {
+      method: method,
       headers,
-    });
+      signal, // Add abort signal support
+    };
 
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = `${errorMessage} - ${errorData.error}`;
-        }
-        if (errorData.details) {
-          errorMessage = `${errorMessage}: ${errorData.details}`;
-        }
-        console.error('API Error:', errorData);
-      } catch {
-        // Response is not JSON, use status text
-        errorMessage = `${errorMessage} - ${response.statusText}`;
-      }
-      
-      throw new Error(errorMessage);
-    }
-
-    // Update cookies from response
-    const setCookie = response.headers.get('x-set-cookie');
-    if (setCookie) {
-      const cookies = setCookie.split(',');
-      cookies.forEach(cookie => {
-        const [nameValue] = cookie.split(';');
-        const [name, value] = nameValue.split('=');
-        if (name && value) {
-          this.cookies.set(name.trim(), value.trim());
-        }
+    if (method === 'POST') {
+      // Create form data string
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        searchParams.append(key, String(value));
       });
+      fetchOptions.body = searchParams.toString();
+      headers['Content-Type'] = 'application/x-www-form-urlencoded';
     }
 
-    const text = await response.text();
     try {
-      const data = JSON.parse(text);
+      const response = await fetch(url.toString(), fetchOptions);
 
+      if (!response.ok) {
+        // If GET failed and we haven't retried yet, try POST
+        if (method === 'GET' && !isRetry) {
+          console.log('GET request failed, retrying with POST...');
+          return this.makeRequest(params, 'POST', true);
+        }
 
-      return data;
-    } catch {
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = `${errorMessage} - ${errorData.error}`;
+          }
+          if (errorData.details) {
+            errorMessage = `${errorMessage}: ${errorData.details}`;
+          }
+          console.error('API Error:', errorData);
+        } catch {
+          // Response is not JSON, use status text
+          errorMessage = `${errorMessage} - ${response.statusText}`;
+        }
+        
+        throw new Error(errorMessage);
+      }
 
-      return text;
+      // Update cookies from response
+      const setCookie = response.headers.get('x-set-cookie');
+      if (setCookie) {
+        const cookies = setCookie.split(',');
+        cookies.forEach(cookie => {
+          const [nameValue] = cookie.split(';');
+          const [name, value] = nameValue.split('=');
+          if (name && value) {
+            this.cookies.set(name.trim(), value.trim());
+          }
+        });
+      }
+
+      const text = await response.text();
+      try {
+        const data = JSON.parse(text);
+        return data;
+      } catch {
+        // If we got text but expected JSON, and it's a GET request, maybe try POST?
+        // Some servers return HTML error pages with 200 OK (like Cloudflare sometimes)
+        if (method === 'GET' && !isRetry && text.includes('<!DOCTYPE html>')) {
+           console.log('Received HTML response for GET, retrying with POST...');
+           return this.makeRequest(params, 'POST', true);
+        }
+        return text;
+      }
+    } catch (error) {
+      // Network error or other fetch error
+      if (method === 'GET' && !isRetry) {
+        console.log('Request failed, retrying with POST...', error);
+        return this.makeRequest(params, 'POST', true);
+      }
+      throw error;
     }
   }
 
@@ -163,7 +215,7 @@ export class BrowserStalkerClient {
     return response?.js || [];
   }
 
-  async getChannels(genreId: string) {
+  async getChannels(genreId: string, firstPageOnly = false, signal?: AbortSignal) {
     let allChannels: any[] = [];
     let currentPage = 1;
     let hasMorePages = true;
@@ -178,7 +230,7 @@ export class BrowserStalkerClient {
         sortby: 'number',
         hd: 0,
         p: currentPage,
-      });
+      }, 'GET', false, signal);
 
       const channels = response?.js?.data || [];
       const totalItems = response?.js?.total_items || 0;
@@ -190,7 +242,8 @@ export class BrowserStalkerClient {
       }
 
       // Check if there are more pages
-      if (allChannels.length >= totalItems || channels.length === 0) {
+      // If firstPageOnly is true, stop after first page
+      if (firstPageOnly || allChannels.length >= totalItems || channels.length === 0) {
         hasMorePages = false;
       } else {
         currentPage++;
@@ -233,7 +286,7 @@ export class BrowserStalkerClient {
     return response?.js || [];
   }
 
-  async getVODItems(categoryId: string) {
+  async getVODItems(categoryId: string, firstPageOnly = false, signal?: AbortSignal) {
     let allItems: any[] = [];
     let currentPage = 1;
     let hasMorePages = true;
@@ -245,7 +298,7 @@ export class BrowserStalkerClient {
         category: categoryId,
         p: currentPage,
         sortby: 'added',
-      });
+      }, 'GET', false, signal);
 
       const items = response?.js?.data || [];
       const totalItems = response?.js?.total_items || 0;
@@ -255,7 +308,7 @@ export class BrowserStalkerClient {
 
       }
 
-      if (allItems.length >= totalItems || items.length === 0) {
+      if (firstPageOnly || allItems.length >= totalItems || items.length === 0) {
         hasMorePages = false;
       } else {
         currentPage++;
@@ -286,7 +339,7 @@ export class BrowserStalkerClient {
     return response?.js || [];
   }
 
-  async getSeriesItems(categoryId: string) {
+  async getSeriesItems(categoryId: string, firstPageOnly = false, signal?: AbortSignal) {
     let allItems: any[] = [];
     let currentPage = 1;
     let hasMorePages = true;
@@ -298,7 +351,7 @@ export class BrowserStalkerClient {
         category: categoryId,
         p: currentPage,
         sortby: 'added',
-      });
+      }, 'GET', false, signal);
 
       const items = response?.js?.data || [];
       const totalItems = response?.js?.total_items || 0;
@@ -308,7 +361,7 @@ export class BrowserStalkerClient {
 
       }
 
-      if (allItems.length >= totalItems || items.length === 0) {
+      if (firstPageOnly || allItems.length >= totalItems || items.length === 0) {
         hasMorePages = false;
       } else {
         currentPage++;

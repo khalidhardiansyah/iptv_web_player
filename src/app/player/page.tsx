@@ -40,6 +40,7 @@ function PlayerContent() {
   const [providerType, setProviderType] = useState<ProviderType>('stalker');
   const [config, setConfig] = useState<any>(null);
   const clientRef = useRef<any>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   const [categories, setCategories] = useState<Category[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -268,8 +269,9 @@ function PlayerContent() {
     setContentType(type);
     setSelectedCategory(null);
     setChannels([]);
-    setSelectedChannel(null);
-    setStreamUrl(null);
+    // Do not clear selectedChannel or streamUrl to keep player running
+    // setSelectedChannel(null);
+    // setStreamUrl(null);
     
     // Fetch appropriate categories if not already loaded
     if (type === 'vod' && vodCategories.length === 0) {
@@ -282,14 +284,25 @@ function PlayerContent() {
 
   const handleCategorySelect = async (categoryId: string) => {
     if (!clientRef.current) return;
+    
+    // Cancel any ongoing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create new AbortController for this request
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    
     setSelectedCategory(categoryId);
     setLoadingChannels(true);
     setChannels([]);
     setCurrentPage(1);
+    
     try {
       let chs = [];
       
-      // Fetch based on content type
+      // Fetch based on content type - ONLY FIRST PAGE for faster loading
       if (contentType === 'live') {
         // Check if this is "All Channels" category
         if (categoryId === '__ALL__' && typeof clientRef.current.getAllChannels === 'function') {
@@ -300,14 +313,15 @@ function PlayerContent() {
           // Only show first page
           chs = chs.slice(0, CHANNELS_PER_PAGE);
         } else {
-          chs = await clientRef.current.getChannels(categoryId);
+          // Load only first page
+          chs = await clientRef.current.getChannels(categoryId, true, signal);
           setTotalChannels(chs.length);
         }
       } else if (contentType === 'vod') {
-        chs = await clientRef.current.getVODItems(categoryId);
+        chs = await clientRef.current.getVODItems(categoryId, true, signal);
         setTotalChannels(chs.length);
       } else if (contentType === 'series') {
-        chs = await clientRef.current.getSeriesItems(categoryId);
+        chs = await clientRef.current.getSeriesItems(categoryId, true, signal);
         setTotalChannels(chs.length);
       }
       
@@ -323,7 +337,12 @@ function PlayerContent() {
       })) || [];
       setChannels(normalizedChannels);
 
-    } catch (error) {
+    } catch (error: any) {
+      // Ignore abort errors
+      if (error.name === 'AbortError') {
+        console.log('Request cancelled');
+        return;
+      }
       console.error('Failed to fetch channels', error);
     } finally {
       setLoadingChannels(false);

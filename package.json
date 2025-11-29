@@ -16,6 +16,7 @@
     "dotenv": "^17.2.3",
     "hls.js": "^1.6.15",
     "lucide-react": "^0.554.0",
+    "mediabunny": "^1.25.3",
     "mpegts.js": "^1.8.0",
     "next": "16.0.3",
     "node-fetch": "^3.3.2",

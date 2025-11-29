@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
+async function handleRequest(request: NextRequest) {
   try {
     const targetUrl = request.nextUrl.searchParams.get('url');
     
     if (!targetUrl) {
       return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 });
     }
-
-
 
     // Forward all query params except 'url'
     const url = new URL(targetUrl);
@@ -35,28 +33,36 @@ export async function GET(request: NextRequest) {
       headers['Authorization'] = authorization;
     }
 
-
+    // Forward Content-Type for POST requests
+    const contentType = request.headers.get('content-type');
+    if (contentType) {
+      headers['Content-Type'] = contentType;
+    }
 
     // Add timeout to prevent hanging requests
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout (increased for slow servers)
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
     try {
-      const response = await fetch(url.toString(), {
-        method: 'GET',
+      const fetchOptions: RequestInit = {
+        method: request.method,
         headers,
-        cache: 'no-store', // Disable caching
+        cache: 'no-store',
         redirect: 'follow',
         signal: controller.signal,
-      });
+      };
+
+      // Forward body for POST requests
+      if (request.method === 'POST') {
+        const body = await request.text();
+        fetchOptions.body = body;
+      }
+
+      const response = await fetch(url.toString(), fetchOptions);
 
       clearTimeout(timeoutId);
 
-
-
       const data = await response.text();
-      
-
       
       // Forward response headers
       const responseHeaders = new Headers();
@@ -77,10 +83,10 @@ export async function GET(request: NextRequest) {
       
       // Handle specific fetch errors
       if (fetchError.name === 'AbortError') {
-        console.error('Request timeout after 15 seconds');
+        console.error('Request timeout after 30 seconds');
         return NextResponse.json({ 
           error: 'Request timeout',
-          details: 'The server took too long to respond (15s timeout)',
+          details: 'The server took too long to respond (30s timeout)',
           url: url.toString(),
         }, { status: 504 });
       }
@@ -121,4 +127,12 @@ export async function GET(request: NextRequest) {
       code: error.cause?.code,
     }, { status: 500 });
   }
+}
+
+export async function GET(request: NextRequest) {
+  return handleRequest(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handleRequest(request);
 }

@@ -28,6 +28,12 @@ export function detectStreamFormat(url: string): StreamFormat {
     return StreamFormat.MPEGTS;
   }
 
+  if (urlLower.includes('.mkv')) {
+    // Treat MKV as MP4 for direct playback (browsers might support it or download it)
+    // HLS.js definitely cannot play it
+    return StreamFormat.MP4;
+  }
+
   // Default to HLS for IPTV streams
   return StreamFormat.HLS;
 }
@@ -114,9 +120,9 @@ function getNetworkInfo() {
 export function getOptimalHlsConfig(capabilities: DeviceCapabilities) {
   const baseConfig = {
     enableWorker: true,
-    lowLatencyMode: true,
+    lowLatencyMode: false, // Disable for better buffering stability
     backBufferLength: 90,
-    maxBufferLength: 30,
+    maxBufferLength: 60, // Increased from 30 to reduce buffering
     maxMaxBufferLength: 600,
     maxBufferSize: 60 * 1000 * 1000,
     maxBufferHole: 0.5,
@@ -161,7 +167,7 @@ export function getOptimalHlsConfig(capabilities: DeviceCapabilities) {
     fragLoadingMaxRetry: 6,
     fragLoadingRetryDelay: 1000,
     fragLoadingMaxRetryTimeout: 64000,
-    startFragPrefetch: false,
+    startFragPrefetch: true, // Enable prefetch for smoother playback
     startLevel: undefined,
     debug: false,
     capLevelOnFPSDrop: false,

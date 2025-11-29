@@ -56,10 +56,10 @@ export async function GET(request: NextRequest) {
       switch (response.status) {
         case 456:
           userMessage = 'Stream unavailable (Error 456). This may indicate:\n' +
-                       '- The channel is temporarily offline\n' +
+                       '- The stream format (MKV) is not supported by the server for web playback\n' +
                        '- Your session has expired (try reconnecting)\n' +
                        '- The stream URL is invalid\n\n' +
-                       'Please try selecting another channel or reconnect to your portal.';
+                       'For MKV files, please use the Download button to watch in VLC or other media player.';
           break;
         case 403:
           userMessage = 'Access forbidden. Your account may not have permission to access this channel.';
@@ -69,6 +69,9 @@ export async function GET(request: NextRequest) {
           break;
         case 401:
           userMessage = 'Authentication required. Please reconnect to your portal.';
+          break;
+        case 458:
+          userMessage = 'Stream error (458). The server rejected the request. This might be due to an invalid token or incompatible stream format.';
           break;
         default:
           userMessage = `Stream unavailable (HTTP ${response.status}). Please try another channel.`;
