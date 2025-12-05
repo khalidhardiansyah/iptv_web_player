@@ -3,14 +3,14 @@
  * Core video element wrapper with basic event handlers
  */
 
-import { forwardRef } from 'react';
+import { forwardRef, ReactEventHandler } from 'react';
 
 interface PlayerCoreProps {
   poster?: string;
   onLoadedData?: () => void;
   onWaiting?: () => void;
   onPlaying?: () => void;
-  onError?: (e: Event) => void;
+  onError?: ReactEventHandler<HTMLVideoElement>;
 }
 
 export const PlayerCore = forwardRef<HTMLVideoElement, PlayerCoreProps>(
