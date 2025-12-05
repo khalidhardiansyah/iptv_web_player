@@ -1,0 +1,40 @@
+﻿============================================================
+FUNMITRA PORTAL TEST
+============================================================
+Portal: http://www.funmitra.com:8080
+MAC: 00:1A:79:73:32:6A
+============================================================
+
+[TEST] Testing Base URL: http://www.funmitra.com:8080/c (Standard /c/)
+----------------------------------------
+URL: http://www.funmitra.com:8080/c/server/load.php?type=stb&action=handshake&token=&mac=00:1A:79:73:32:6A
+Status: 404
+
+[TEST] Testing Base URL: http://www.funmitra.com:8080 (Root)
+----------------------------------------
+URL: http://www.funmitra.com:8080/server/load.php?type=stb&action=handshake&token=&mac=00:1A:79:73:32:6A
+Status: 200
+Γ£à SUCCESS! Found valid endpoint.
+Response: {
+  "js": {
+    "token": "F6D2C30538DEF03A78FC9C9454EE7DF4"
+  }
+}
+
+Γ£à Handshake successful. Proceeding with category tests on this URL...
+
+[TEST] Standard Bearer + Query Params
+URL: http://www.funmitra.com:8080/server/load.php?type=itv&action=get_genres&mac=00:1A:79:73:32:6A&token=F6D2C30538DEF03A78FC9C9454EE7DF4
+Γ¥î Empty response
+
+[TEST] No Bearer (just token) + Query Params
+URL: http://www.funmitra.com:8080/server/load.php?type=itv&action=get_genres&mac=00:1A:79:73:32:6A&token=F6D2C30538DEF03A78FC9C9454EE7DF4
+Γ¥î Empty response
+
+[TEST] Token in Cookie + Query Params
+URL: http://www.funmitra.com:8080/server/load.php?type=itv&action=get_genres&mac=00:1A:79:73:32:6A&token=F6D2C30538DEF03A78FC9C9454EE7DF4
+Γ¥î Empty response
+
+[TEST] No Authorization Header (just Query Params)
+URL: http://www.funmitra.com:8080/server/load.php?type=itv&action=get_genres&mac=00:1A:79:73:32:6A&token=F6D2C30538DEF03A78FC9C9454EE7DF4
+Γ¥î Empty response

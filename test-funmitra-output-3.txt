@@ -1,0 +1,42 @@
+﻿============================================================
+FUNMITRA PORTAL TEST
+============================================================
+Portal: http://www.funmitra.com:8080
+MAC: 00:1A:79:73:32:6A
+============================================================
+
+[TEST] Testing Base URL: http://www.funmitra.com:8080/c (Standard /c/)
+----------------------------------------
+URL: http://www.funmitra.com:8080/c/server/load.php?type=stb&action=handshake&token=&mac=00:1A:79:73:32:6A
+Status: 404
+
+[TEST] Testing Base URL: http://www.funmitra.com:8080 (Root)
+----------------------------------------
+URL: http://www.funmitra.com:8080/server/load.php?type=stb&action=handshake&token=&mac=00:1A:79:73:32:6A
+Status: 200
+Γ£à SUCCESS! Found valid endpoint.
+Response: {
+  "js": {
+    "token": "22D15C6C957819194965D80B9103DA8C"
+  }
+}
+
+Γ£à Handshake successful. Proceeding with category tests on this URL...
+
+[TEST 2] Get Genres
+URL: http://www.funmitra.com:8080/server/load.php?type=itv&action=get_genres
+
+[Get Genres] Status: 200
+Response (Text): 
+
+[TEST 3] Get All Channels
+URL: http://www.funmitra.com:8080/server/load.php?type=itv&action=get_all_channels
+
+[Get All Channels] Status: 200
+Response (Text): 
+
+[TEST 4] Get Ordered List (p=1)
+URL: http://www.funmitra.com:8080/server/load.php?type=itv&action=get_ordered_list&p=1
+
+[Get Ordered List] Status: 200
+Response (Text): 

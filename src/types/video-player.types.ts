@@ -7,6 +7,8 @@ export enum StreamFormat {
   DASH = 'dash',
   MP4 = 'mp4',
   MPEGTS = 'mpegts',
+  MKV = 'mkv',
+  NATIVE = 'native',
   UNKNOWN = 'unknown',
 }
 

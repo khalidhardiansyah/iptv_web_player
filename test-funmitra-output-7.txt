@@ -1,0 +1,44 @@
+﻿============================================================
+FUNMITRA PORTAL TEST
+============================================================
+Portal: http://www.funmitra.com:8080
+MAC: 00:1A:79:73:32:6A
+============================================================
+
+[TEST] Testing Base URL: http://www.funmitra.com:8080/c (Standard /c/)
+----------------------------------------
+URL: http://www.funmitra.com:8080/c/server/load.php?type=stb&action=handshake&token=&mac=00:1A:79:73:32:6A
+Status: 404
+
+[TEST] Testing Base URL: http://www.funmitra.com:8080 (Root)
+----------------------------------------
+URL: http://www.funmitra.com:8080/server/load.php?type=stb&action=handshake&token=&mac=00:1A:79:73:32:6A
+Status: 200
+Γ£à SUCCESS! Found valid endpoint.
+Response: {
+  "js": {
+    "token": "F28F3039B10CC3B59581BA77CB9BC21A"
+  }
+}
+
+Γ£à Handshake successful. Proceeding with category tests on this URL...
+node : D:\project\iptv_stalker_player\test-stalker-funmitr
+a.js:104
+At line:1 char:1
++ node test-stalker-funmitra.js 2>&1 | Out-File -Encoding 
+utf8 test-fun ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (D:\project\i 
+   ptv...funmitra.js:104:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+      const token = data.js.token;
+                    ^
+
+ReferenceError: data is not defined
+    at testFunmitraPortal (D:\project\iptv_stalker_player\
+test-stalker-funmitra.js:104:21)
+    at process.processTicksAndRejections 
+(node:internal/process/task_queues:105:5)
+
+Node.js v22.19.0

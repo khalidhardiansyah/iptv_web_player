@@ -1,0 +1,58 @@
+﻿============================================================
+FUNMITRA PORTAL TEST
+============================================================
+Portal: http://www.funmitra.com:8080
+MAC: 00:1A:79:73:32:6A
+============================================================
+
+[TEST 1] Handshake
+URL: http://www.funmitra.com:8080/c/server/load.php?type=stb&action=handshake&token=&mac=00:1A:79:73:32:6A
+
+[Handshake] Status: 404
+Response (Text): <html>
+<head><title>404 Not Found</title></head>
+<body>
+<center><h1>404 Not Found</h1></center>
+<hr><center>nginx</center>
+</body>
+</html>
+
+
+[TEST 2] Get Genres
+URL: http://www.funmitra.com:8080/c/server/load.php?type=itv&action=get_genres
+
+[Get Genres] Status: 404
+Response (Text): <html>
+<head><title>404 Not Found</title></head>
+<body>
+<center><h1>404 Not Found</h1></center>
+<hr><center>nginx</center>
+</body>
+</html>
+
+
+[TEST 3] Get All Channels
+URL: http://www.funmitra.com:8080/c/server/load.php?type=itv&action=get_all_channels
+
+[Get All Channels] Status: 404
+Response (Text): <html>
+<head><title>404 Not Found</title></head>
+<body>
+<center><h1>404 Not Found</h1></center>
+<hr><center>nginx</center>
+</body>
+</html>
+
+
+[TEST 4] Get Ordered List (p=1)
+URL: http://www.funmitra.com:8080/c/server/load.php?type=itv&action=get_ordered_list&p=1
+
+[Get Ordered List] Status: 404
+Response (Text): <html>
+<head><title>404 Not Found</title></head>
+<body>
+<center><h1>404 Not Found</h1></center>
+<hr><center>nginx</center>
+</body>
+</html>
+

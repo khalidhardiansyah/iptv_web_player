@@ -150,4 +150,22 @@ export class BrowserXtreamClient {
   async handshake() {
     return this.authenticate();
   }
+
+  async getEpg(streamId: string, limit: number = 10) {
+    try {
+      console.log(`Xtream: Fetching EPG for stream ${streamId}, limit: ${limit}`);
+      const response = await this.callApi('get_short_epg', {
+        stream_id: streamId,
+        limit: limit
+      });
+
+      const epgData = response?.epg_listings || [];
+      console.log(`Xtream: Received ${Array.isArray(epgData) ? epgData.length : 0} EPG entries`);
+      return epgData;
+    } catch (error: any) {
+      console.error('Xtream: Failed to fetch EPG', error);
+      // Don't throw, return empty array if EPG fails
+      return [];
+    }
+  }
 }

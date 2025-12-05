@@ -23,6 +23,14 @@ export class BrowserStalkerClient {
     this.preferredMethod = this.getStoredMethod();
   }
 
+  public getToken(): string | null {
+    return this.token;
+  }
+
+  public getCookies(): string {
+    return this.getCookieString();
+  }
+
   private getCookieString(): string {
     return Array.from(this.cookies.entries())
       .map(([key, value]) => `${key}=${value}`)
@@ -276,7 +284,7 @@ export class BrowserStalkerClient {
     return response?.js || [];
   }
 
-  async getChannels(genreId: string, firstPageOnly = false, signal?: AbortSignal) {
+  async getChannels(genreId: string, firstPageOnly = false, signal?: AbortSignal, maxChannels = 500) {
     let allChannels: any[] = [];
     let currentPage = 1;
     let hasMorePages = true;
@@ -299,18 +307,24 @@ export class BrowserStalkerClient {
 
       if (channels.length > 0) {
         allChannels = allChannels.concat(channels);
-
       }
 
       // Check if there are more pages
-      // If firstPageOnly is true, stop after first page
-      if (firstPageOnly || allChannels.length >= totalItems || channels.length === 0) {
+      // Stop if: firstPageOnly, reached total items, no more channels, or reached max limit
+      if (firstPageOnly || 
+          allChannels.length >= totalItems || 
+          channels.length === 0 ||
+          allChannels.length >= maxChannels) {
         hasMorePages = false;
       } else {
         currentPage++;
       }
     }
 
+    // Trim to max if exceeded
+    if (allChannels.length > maxChannels) {
+      allChannels = allChannels.slice(0, maxChannels);
+    }
 
     return allChannels;
   }
@@ -347,7 +361,7 @@ export class BrowserStalkerClient {
     return response?.js || [];
   }
 
-  async getVODItems(categoryId: string, firstPageOnly = false, signal?: AbortSignal) {
+  async getVODItems(categoryId: string, firstPageOnly = false, signal?: AbortSignal, maxItems = 500) {
     let allItems: any[] = [];
     let currentPage = 1;
     let hasMorePages = true;
@@ -366,14 +380,20 @@ export class BrowserStalkerClient {
 
       if (items.length > 0) {
         allItems = allItems.concat(items);
-
       }
 
-      if (firstPageOnly || allItems.length >= totalItems || items.length === 0) {
+      if (firstPageOnly || 
+          allItems.length >= totalItems || 
+          items.length === 0 ||
+          allItems.length >= maxItems) {
         hasMorePages = false;
       } else {
         currentPage++;
       }
+    }
+
+    if (allItems.length > maxItems) {
+      allItems = allItems.slice(0, maxItems);
     }
 
     return allItems;
@@ -400,7 +420,7 @@ export class BrowserStalkerClient {
     return response?.js || [];
   }
 
-  async getSeriesItems(categoryId: string, firstPageOnly = false, signal?: AbortSignal) {
+  async getSeriesItems(categoryId: string, firstPageOnly = false, signal?: AbortSignal, maxItems = 500) {
     let allItems: any[] = [];
     let currentPage = 1;
     let hasMorePages = true;
@@ -419,14 +439,20 @@ export class BrowserStalkerClient {
 
       if (items.length > 0) {
         allItems = allItems.concat(items);
-
       }
 
-      if (firstPageOnly || allItems.length >= totalItems || items.length === 0) {
+      if (firstPageOnly || 
+          allItems.length >= totalItems || 
+          items.length === 0 ||
+          allItems.length >= maxItems) {
         hasMorePages = false;
       } else {
         currentPage++;
       }
+    }
+
+    if (allItems.length > maxItems) {
+      allItems = allItems.slice(0, maxItems);
     }
 
     return allItems;
@@ -462,5 +488,25 @@ export class BrowserStalkerClient {
       disable_ad: 0,
     });
     return response?.js?.cmd || null;
+  }
+
+  async getEpg(channelId: string, period: number = 7) {
+    try {
+      console.log(`Stalker: Fetching EPG for channel ${channelId}, period: ${period} days`);
+      const response = await this.makeRequest({
+        type: 'itv',
+        action: 'get_epg_info',
+        period: period,
+        ch_id: channelId
+      });
+
+      const epgData = response?.js || [];
+      console.log(`Stalker: Received ${Array.isArray(epgData) ? epgData.length : 0} EPG entries`);
+      return epgData;
+    } catch (error: any) {
+      console.error('Stalker: Failed to fetch EPG', error);
+      // Don't throw, return empty array if EPG fails
+      return [];
+    }
   }
 }

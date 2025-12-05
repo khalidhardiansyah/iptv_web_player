@@ -1,0 +1,22 @@
+﻿============================================================
+FUNMITRA PORTAL TEST
+============================================================
+Portal: http://www.funmitra.com:8080
+MAC: 00:1A:79:73:32:6A
+============================================================
+
+[TEST] Testing Base URL: http://www.funmitra.com:8080/c (Standard /c/)
+----------------------------------------
+URL: http://www.funmitra.com:8080/c/server/load.php?type=stb&action=handshake&token=&mac=00:1A:79:73:32:6A
+Status: 404
+
+[TEST] Testing Base URL: http://www.funmitra.com:8080 (Root)
+----------------------------------------
+URL: http://www.funmitra.com:8080/server/load.php?type=stb&action=handshake&token=&mac=00:1A:79:73:32:6A
+Status: 200
+Γ£à SUCCESS! Found valid endpoint.
+Response: {
+  "js": {
+    "token": "0A50CD50F0E21CB5D931CF9A5EEBC6EA"
+  }
+}

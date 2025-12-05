@@ -1,0 +1,41 @@
+﻿============================================================
+FUNMITRA PORTAL TEST
+============================================================
+Portal: http://www.funmitra.com:8080
+MAC: 00:1A:79:73:32:6A
+============================================================
+
+[TEST] Testing Base URL: http://www.funmitra.com:8080/c (Standard /c/)
+----------------------------------------
+URL: http://www.funmitra.com:8080/c/server/load.php?type=stb&action=handshake&token=&mac=00:1A:79:73:32:6A
+Status: 404
+
+[TEST] Testing Base URL: http://www.funmitra.com:8080 (Root)
+----------------------------------------
+URL: http://www.funmitra.com:8080/server/load.php?type=stb&action=handshake&token=&mac=00:1A:79:73:32:6A
+Status: 200
+Γ£à SUCCESS! Found valid endpoint.
+Response: {
+  "js": {
+    "token": "1AA7DCD5CCF4D66FCFCA6D046DDF7795"
+  }
+}
+
+Γ£à Handshake successful. Proceeding with category tests on this URL...
+
+[TEST 2] Get Genres
+node : ERROR: data is not defined
+At line:1 char:1
++ node test-stalker-funmitra.js 2>&1 | Out-File -Encoding 
+utf8 test-fun ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ERROR: data  
+   is not defined:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+[TEST 3] Get All Channels
+ERROR: data is not defined
+
+[TEST 4] Get Ordered List (p=1)
+ERROR: data is not defined

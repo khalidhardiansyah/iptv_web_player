@@ -1,0 +1,51 @@
+﻿============================================================
+STALKER PORTAL TEST
+============================================================
+Portal: http://breakfa5t.club
+MAC: 00:1a:79:aa:e0:3f
+============================================================
+
+[TEST 1] Handshake
+------------------------------------------------------------
+URL: http://breakfa5t.club/server/load.php?type=stb&action=handshake&token=&mac=00:1a:79:aa:e0:3f
+Status: 200
+Response: {
+  "js": {
+    "token": "5AD269F70ADBB7C7CB4FBF31232A2467"
+  }
+}
+Γ£à Token received: 5AD269F70ADBB7C7CB4FBF31232A2467
+
+[TEST 2] Get Genres (Live TV Categories)
+------------------------------------------------------------
+URL: http://breakfa5t.club/server/load.php?type=itv&action=get_genres
+
+[TEST 3] Get All Channels
+------------------------------------------------------------
+URL: http://breakfa5t.club/server/load.php?type=itv&action=get_all_channels
+node : ERROR: Unexpected end of JSON input
+At line:1 char:1
++ node test-stalker-breakfast.js 2>&1 | Out-File 
+-Encoding utf8 test-ou ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ERROR: Unexp 
+   ected end of JSON input:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+[TEST 4] Get Genres with GET method
+ERROR: Unexpected end of JSON input
+------------------------------------------------------------
+URL: http://breakfa5t.club/server/load.php?type=itv&action=get_genres
+Method: GET
+ERROR: Unexpected end of JSON input
+
+[TEST 5] Get Genres with POST method
+------------------------------------------------------------
+URL: http://breakfa5t.club/server/load.php
+Method: POST
+ERROR: Unexpected end of JSON input
+
+============================================================
+TEST COMPLETE
+============================================================
