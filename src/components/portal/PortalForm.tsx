@@ -3,7 +3,7 @@ import { ArrowLeft, Eye, EyeOff, Play } from 'lucide-react';
 import clsx from 'clsx';
 import { SavedPortal, ProviderType } from '@/types/portal';
 import { BrowserStalkerClient } from '@/lib/browser-stalker';
-import { XtreamClient } from '@/lib/xtream-client';
+import { BrowserXtreamClient } from '@/lib/browser-xtream';
 import { M3UClient } from '@/lib/m3u-client';
 import { supabase } from '@/lib/supabase';
 
@@ -143,7 +143,7 @@ export default function PortalForm({ initialData, onSuccess, onCancel, existingP
       } else if (providerType === 'xtream') {
         if (!server.startsWith('http')) throw new Error('Server URL must start with http:// or https://');
         console.log('Creating Xtream client and authenticating...');
-        const client = new XtreamClient({ baseUrl: server, username, password });
+        const client = new BrowserXtreamClient({ baseUrl: server, username, password });
         console.log('Xtream client created, calling authenticate()...');
         const authResult = await client.authenticate();
         console.log('Authenticate returned:', authResult ? 'success' : 'null');

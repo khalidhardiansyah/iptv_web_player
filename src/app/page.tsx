@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Tv } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { BrowserStalkerClient } from '@/lib/browser-stalker';
-import { XtreamClient } from '@/lib/xtream-client';
+import { BrowserXtreamClient } from '@/lib/browser-xtream';
 import { M3UClient } from '@/lib/m3u-client';
 import { SavedPortal } from '@/types/portal';
 import BackgroundEffects from '@/components/portal/BackgroundEffects';
@@ -79,7 +79,7 @@ export default function LoginPage() {
         await client.handshake();
       } else if (portal.type === 'xtream') {
         if (!portal.server || !portal.username || !portal.password) throw new Error('Missing Xtream credentials');
-        const client = new XtreamClient({ baseUrl: portal.server, username: portal.username, password: portal.password });
+        const client = new BrowserXtreamClient({ baseUrl: portal.server, username: portal.username, password: portal.password });
         await client.authenticate();
       } else if (portal.type === 'm3u') {
         if (!portal.playlistUrl) throw new Error('Missing M3U playlist URL');

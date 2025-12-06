@@ -71,12 +71,18 @@ export function shouldUseProxy(
   
   // Already proxied
   if (url.includes('/api/stream') || url.includes('/api/proxy')) return false;
+
+  // Check for Mixed Content (HTTP stream on HTTPS page)
+  if (typeof window !== 'undefined' && 
+      window.location.protocol === 'https:' && 
+      url.startsWith('http:')) {
+    return true;
+  }
   
   // Stalker always needs proxy
   if (isStalkerStream(url)) return true;
   
-  // Xtream usually works directly
-  if (isXtreamStream(url)) return false;
+
   
   // MPEGTS needs proxy for CORS
   if (format === StreamFormat.MPEGTS) return true;
